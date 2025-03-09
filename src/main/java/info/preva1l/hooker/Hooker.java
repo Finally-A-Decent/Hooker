@@ -1,13 +1,11 @@
 package info.preva1l.hooker;
 
-import info.preva1l.hooker.annotation.OnStart;
-import info.preva1l.hooker.annotation.Require;
+import info.preva1l.hooker.annotation.*;
 import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.server.PluginDisableEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import info.preva1l.hooker.annotation.Hook;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,6 +20,7 @@ import java.util.function.Predicate;
  *
  * @author Preva1l
  */
+@SuppressWarnings("unused")
 public final class Hooker implements Listener {
     private static Hooker instance;
 
@@ -56,9 +55,7 @@ public final class Hooker implements Listener {
      * @param packages what packages hooker will scan for classes annotated with {@link Hook}
      */
     public static void register(JavaPlugin plugin, String... packages) {
-        if (instance != null) {
-            throw new IllegalStateException("Hooker is already registered!");
-        }
+        if (instance != null) throw new IllegalStateException("Hooker is already registered!");
 
         instance = new Hooker(plugin, false, packages);
     }
@@ -73,9 +70,7 @@ public final class Hooker implements Listener {
      * @param packages what packages hooker will scan for classes annotated with {@link Hook}
      */
     public static void register(JavaPlugin plugin, boolean loadNow, String... packages) {
-        if (instance != null) {
-            throw new IllegalStateException("Hooker is already registered!");
-        }
+        if (instance != null) throw new IllegalStateException("Hooker is already registered!");
 
         instance = new Hooker(plugin, loadNow, packages);
     }
@@ -87,8 +82,11 @@ public final class Hooker implements Listener {
      * @return the hook if loaded, empty optional if not
      */
     public static <T> Optional<T> getHook(Class<T> hookClass) {
+        if (instance == null) throw new IllegalStateException("You cannot get hooks when Hooker is not initialized!");
+
         for (Map.Entry<Class<?>, Object> hook : instance.loadedHooks.entrySet()) {
             if (hook.getKey() == hookClass) {
+                //noinspection unchecked
                 return Optional.of((T) hook.getValue());
             }
         }
@@ -96,9 +94,20 @@ public final class Hooker implements Listener {
     }
 
     /**
+     * Reloads any loaded hooks that are annotated with {@link Reloadable}
+     */
+    public static void reload() {
+        if (instance == null) throw new IllegalStateException("You cannot reload hooks when Hooker is not initialized!");
+
+        instance.reloadHooks();
+    }
+
+    /**
      * Call this method in your {@link JavaPlugin#onLoad()} after you have registered Hooker and custom requirements
      */
     public static void load() {
+        if (instance == null) throw new IllegalStateException("You cannot load hooks when Hooker is not initialized!");
+
         instance.owningPlugin.getLogger().info("Loading onLoad hooks...");
         int count = instance.loadHooks(instance.onLoadHooks);
         instance.owningPlugin.getLogger().info("Loaded " + count + " hooks!");
@@ -108,6 +117,8 @@ public final class Hooker implements Listener {
      * Call this method at the top of {@link JavaPlugin#onEnable()}
      */
     public static void enable() {
+        if (instance == null) throw new IllegalStateException("You cannot reload hooks when Hooker is not initialized!");
+
         Bukkit.getPluginManager().registerEvents(instance, instance.owningPlugin);
         instance.owningPlugin.getLogger().info("Loading onEnable hooks...");
         int count = instance.loadHooks(instance.onEnableHooks);
@@ -131,6 +142,8 @@ public final class Hooker implements Listener {
      * @param predicate the checker
      */
     public static void requirement(String requirement, Predicate<String> predicate) {
+        if (instance == null) throw new IllegalStateException("You cannot add a requirement when Hooker is not initialized!");
+
         if (instance.requirementRegistry.exists(requirement)) {
             throw new IllegalStateException("Requirement " + requirement + " already exists!");
         }
@@ -142,6 +155,36 @@ public final class Hooker implements Listener {
         if (!event.getPlugin().equals(owningPlugin)) return;
 
         disableHooks();
+    }
+
+    private void reloadHooks() {
+        for (Object hook : loadedHooks.values()) {
+            for (Method method : hook.getClass().getDeclaredMethods()) {
+                if (!method.isAnnotationPresent(OnStop.class)) continue;
+                Reloadable reloadable = hook.getClass().getAnnotation(Reloadable.class);
+                if (reloadable == null) continue;
+                method.setAccessible(true);
+                if (reloadable.async()) {
+                    Bukkit.getScheduler().runTaskAsynchronously(owningPlugin, () -> {
+                        try {
+                            method.invoke(hook);
+                        } catch (IllegalAccessException | InvocationTargetException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+                } else {
+                    Bukkit.getScheduler().runTask(owningPlugin, () -> {
+                        try {
+                            method.invoke(hook);
+                        } catch (IllegalAccessException | InvocationTargetException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+                }
+                break;
+            }
+            loadedHooks.remove(hook.getClass());
+        }
     }
 
     private int loadHooks(List<Class<?>> hooks) {
@@ -182,8 +225,17 @@ public final class Hooker implements Listener {
     }
 
     private void disableHooks() {
-        for (Object hookClass : loadedHooks.values()) {
-            // todo: effort
+        for (Object hook : loadedHooks.values()) {
+            for (Method method : hook.getClass().getDeclaredMethods()) {
+                if (!method.isAnnotationPresent(OnStop.class)) continue;
+                try {
+                    method.invoke(hook);
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                    throw new RuntimeException(e);
+                }
+                break;
+            }
+            loadedHooks.remove(hook.getClass());
         }
     }
 
@@ -204,7 +256,7 @@ public final class Hooker implements Listener {
         }
     }
 
-    private static Map<Class<?>, HookOrder> getClasses(ClassLoader classLoader, String packageName) throws ClassNotFoundException, IOException {
+    private Map<Class<?>, HookOrder> getClasses(ClassLoader classLoader, String packageName) throws ClassNotFoundException, IOException {
         if (classLoader == null) {
             return Map.of();
         }
@@ -227,7 +279,7 @@ public final class Hooker implements Listener {
         return classes;
     }
 
-    private static Map<Class<?>, HookOrder> findClasses(File directory, String packageName) {
+    private Map<Class<?>, HookOrder> findClasses(File directory, String packageName) {
         Map<Class<?>, HookOrder> classes = new HashMap<>();
         if (!directory.exists()) {
             return classes;
