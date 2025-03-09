@@ -1,0 +1,6 @@
+name: MyPlugin
+version: 1.0
+api: 1.17
+main: info.preva1l.hooker.example.MyPlugin
+depend:
+  - "PlaceholderAPI"
