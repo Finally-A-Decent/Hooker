@@ -11,7 +11,7 @@ import org.junit.jupiter.api.*;
  *
  * @author Preva1l
  */
-@DisplayName("Hooker Tests (1.17.1)")
+@DisplayName("Hooker Tests (1.19)")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class HookerTests {
     @BeforeAll

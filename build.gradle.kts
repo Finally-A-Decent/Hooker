@@ -27,7 +27,7 @@ allprojects {
     dependencies {
         compileOnly("io.papermc.paper:paper-api:1.17-R0.1-SNAPSHOT")
 
-        testImplementation("com.github.seeseemelk:MockBukkit-v1.19:3.93.2")
+        testImplementation("com.github.seeseemelk:MockBukkit-v1.19:3.1.0")
         testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
         testImplementation("org.junit.jupiter:junit-jupiter-params:5.11.4")
         testImplementation("org.junit.jupiter:junit-jupiter-engine:5.11.4")
