@@ -7,13 +7,20 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 /**
  * Created on 9/03/2025
@@ -346,18 +353,38 @@ public final class Hooker {
         }
 
         String path = packageName.replace('.', '/');
-
         Enumeration<URL> resources = classLoader.getResources(path);
-        List<File> dirs = new ArrayList<>();
+        Map<Class<?>, HookOrder> classes = new HashMap<>();
 
         while (resources.hasMoreElements()) {
             URL resource = resources.nextElement();
-            dirs.add(new File(resource.getFile()));
-        }
 
-        Map<Class<?>, HookOrder> classes = new HashMap<>();
-        for (File directory : dirs) {
-            classes.putAll(findClasses(directory, packageName));
+            if (resource.getProtocol().equals("jar")) {
+                String jarFilePath = resource.getPath().substring(5, resource.getPath().indexOf("!"));
+                JarFile jarFile = new JarFile(jarFilePath);
+
+                Enumeration<JarEntry> entries = jarFile.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry entry = entries.nextElement();
+                    if (entry.getName().startsWith(path) && entry.getName().endsWith(".class")) {
+                        String className = entry.getName().substring(0, entry.getName().length() - 6).replace('/', '.');
+                        try {
+                            Class<?> clazz = classLoader.loadClass(className);
+
+                            Hook annotation = clazz.getAnnotation(Hook.class);
+                            if (annotation != null) {
+                                classes.put(clazz, annotation.order());
+                            }
+                        } catch (ClassNotFoundException | NoClassDefFoundError ignored) {}
+                    }
+                }
+                jarFile.close();
+            } else {
+                File directory = new File(resource.getFile());
+                if (directory.exists()) {
+                    classes.putAll(findClasses(directory, packageName));
+                }
+            }
         }
 
         return classes;
@@ -376,21 +403,17 @@ public final class Hooker {
 
         for (File file : files) {
             if (file.isDirectory()) {
-                assert !file.getName().contains(".");
                 classes.putAll(findClasses(file, packageName + "." + file.getName()));
             } else if (file.getName().endsWith(".class")) {
-                Class<?> found;
+                String fileName = file.getName().substring(0, file.getName().length() - 6);
                 try {
-                    found = Class.forName(packageName + '.' + file.getName().substring(0, file.getName().length() - 6));
-                } catch (ClassNotFoundException ignored) {
-                    continue;
-                }
+                    Class<?> clazz = Class.forName(packageName + '.' + fileName);
 
-                Hook annotation = found.getAnnotation(Hook.class);
-
-                if (annotation == null) continue;
-
-                classes.put(found, annotation.order());
+                    Hook annotation = clazz.getAnnotation(Hook.class);
+                    if (annotation != null) {
+                        classes.put(clazz, annotation.order());
+                    }
+                } catch (ClassNotFoundException ignored) {}
             }
         }
         return classes;
