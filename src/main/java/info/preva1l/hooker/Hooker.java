@@ -160,29 +160,51 @@ public final class Hooker implements Listener {
 
     private void reloadHooks() {
         for (Object hook : loadedHooks.values()) {
+            Method tempMethod = null;
+            Method tempMethod2 = null;
+            Reloadable reloadable = hook.getClass().getAnnotation(Reloadable.class);
+            if (reloadable == null) continue;
+
             for (Method method : hook.getClass().getDeclaredMethods()) {
-                if (!method.isAnnotationPresent(OnStop.class)) continue;
-                Reloadable reloadable = hook.getClass().getAnnotation(Reloadable.class);
-                if (reloadable == null) continue;
-                method.setAccessible(true);
-                if (reloadable.async()) {
-                    MultiLib.getAsyncScheduler().runNow(owningPlugin, t -> {
-                        try {
-                            method.invoke(hook);
-                        } catch (IllegalAccessException | InvocationTargetException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-                } else {
-                    MultiLib.getGlobalRegionScheduler().run(owningPlugin, t -> {
-                        try {
-                            method.invoke(hook);
-                        } catch (IllegalAccessException | InvocationTargetException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
+                if (method.isAnnotationPresent(OnStart.class)) {
+                    tempMethod = method;
                 }
-                break;
+                if (method.isAnnotationPresent(OnStop.class)) {
+                    tempMethod2 = method;
+                }
+            }
+
+            assert tempMethod != null;
+            Method startMethod = tempMethod;
+            startMethod.setAccessible(true);
+
+            Method stopMethod = tempMethod2;
+            if (stopMethod != null) {
+                stopMethod.setAccessible(true);
+            }
+
+            if (reloadable.async()) {
+                MultiLib.getAsyncScheduler().runNow(owningPlugin, t -> {
+                    try {
+                        if (stopMethod != null) {
+                            stopMethod.invoke(hook);
+                        }
+                        startMethod.invoke(hook);
+                    } catch (IllegalAccessException | InvocationTargetException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            } else {
+                MultiLib.getGlobalRegionScheduler().run(owningPlugin, t -> {
+                    try {
+                        if (stopMethod != null) {
+                            stopMethod.invoke(hook);
+                        }
+                        startMethod.invoke(hook);
+                    } catch (IllegalAccessException | InvocationTargetException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
             }
             loadedHooks.remove(hook.getClass());
         }
