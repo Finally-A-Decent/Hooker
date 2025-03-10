@@ -8,8 +8,7 @@ plugins {
 }
 
 var currentBranch: String = grgit.branch.current().name
-if (currentBranch != "master") {
-    println("Current branch: $currentBranch")
+if (currentBranch != "master" || currentBranch != "HEAD") {
     println("Starting in development mode")
 }
 
