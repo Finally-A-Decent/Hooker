@@ -231,11 +231,18 @@ public final class Hooker implements Listener {
 
                 Object hook = hookClass.getDeclaredConstructor().newInstance();
 
+                boolean loaded = false;
                 for (Method method : hookClass.getDeclaredMethods()) {
                     if (!method.isAnnotationPresent(OnStart.class)) continue;
-                    method.invoke(hook);
+                    Object response = method.invoke(hook);
+                    if (response instanceof Boolean load) {
+                        loaded = load;
+                    } else {
+                        loaded = true;
+                    }
                     break;
                 }
+                if (!loaded) continue;
                 owningPlugin.getLogger().info("Loaded hook: " + hookAnnotation.id());
                 loadedHooks.put(hookClass, hook);
                 count++;
