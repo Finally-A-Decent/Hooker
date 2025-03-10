@@ -44,10 +44,6 @@ allprojects {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-    testLogging {
-        events("started", "passed", "failed", "skipped", "standardOut", "standardError")
-        showStandardStreams = true
-    }
 }
 
 tasks.withType<ShadowJar> {

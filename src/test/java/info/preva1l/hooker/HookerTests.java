@@ -6,12 +6,10 @@ import info.preva1l.hooker.example.MyPlugin;
 import info.preva1l.hooker.example.hooks.LateHook;
 import info.preva1l.hooker.example.hooks.OnEnableHook;
 import info.preva1l.hooker.example.hooks.OnLoadHook;
-import org.bukkit.event.server.PluginDisableEvent;
 import org.junit.jupiter.api.*;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Created on 9/03/2025
@@ -19,7 +17,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author Preva1l
  */
 @DisplayName("Hooker Tests")
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class HookerTests {
     private static ServerMock serverMock;
     private static MyPlugin plugin;
@@ -38,21 +35,24 @@ public class HookerTests {
         MockBukkit.unmock();
     }
 
-    @Order(1)
+    @Test
+    @DisplayName("Test Plugin Enables")
+    public void testPluginEnables() {
+        Assertions.assertTrue(plugin.isEnabled());
+    }
+
     @Test
     @DisplayName("Test Hook Gets Loaded On Load")
     public void testLoadingOnLoad() {
         Assertions.assertTrue(Hooker.getHook(OnLoadHook.class).isPresent());
     }
 
-    @Order(2)
     @Test
     @DisplayName("Test Hook Gets Loaded On Enable")
     public void testLoadingOnEnable() {
         Assertions.assertTrue(Hooker.getHook(OnEnableHook.class).isPresent());
     }
 
-    @Order(3)
     @Test
     @DisplayName("Test Hook Reloading")
     public void testReloadHooks() {
@@ -71,7 +71,6 @@ public class HookerTests {
         });
     }
 
-    @Order(4)
     @Test
     @DisplayName("Test Hooks Get Disabled")
     public void testHooksGetDisabled() {
