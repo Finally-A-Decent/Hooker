@@ -1,11 +1,8 @@
 package info.preva1l.hooker;
 
 import com.github.puregero.multilib.MultiLib;
+import com.github.puregero.multilib.regionized.RegionizedTask;
 import info.preva1l.hooker.annotation.*;
-import org.bukkit.Bukkit;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.server.PluginDisableEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -14,6 +11,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -22,7 +21,7 @@ import java.util.function.Predicate;
  * @author Preva1l
  */
 @SuppressWarnings("unused")
-public final class Hooker implements Listener {
+public final class Hooker {
     private static Hooker instance;
 
     private final RequirementRegistry requirementRegistry;
@@ -96,13 +95,20 @@ public final class Hooker implements Listener {
 
     /**
      * Reloads any loaded hooks that are annotated with {@link Reloadable}
+     * </br>
+     * This method runs some tasks asynchronously (reloadable hooks marked as async),
+     * this is why we return a completable future.
+     *
+     * @return returns a completable future that completes when all hooks are reloaded
      */
-    public static void reload() {
+    public static CompletableFuture<Void> reload() {
         if (instance == null) throw new IllegalStateException("You cannot reload hooks when Hooker is not initialized!");
 
-        instance.owningPlugin.getLogger().info("Reloading hooks...");
-        int count = instance.reloadHooks();
-        instance.owningPlugin.getLogger().info("Reloaded " + count + " hooks!");
+        return CompletableFuture.runAsync(() -> {
+            instance.owningPlugin.getLogger().info("Reloading hooks...");
+            int count = instance.reloadHooks();
+            instance.owningPlugin.getLogger().info("Reloaded " + count + " hooks!");
+        });
     }
 
     /**
@@ -120,9 +126,8 @@ public final class Hooker implements Listener {
      * Call this method at the top of {@link JavaPlugin#onEnable()}
      */
     public static void enable() {
-        if (instance == null) throw new IllegalStateException("You cannot reload hooks when Hooker is not initialized!");
+        if (instance == null) throw new IllegalStateException("You cannot load hooks when Hooker is not initialized!");
 
-        Bukkit.getPluginManager().registerEvents(instance, instance.owningPlugin);
         instance.owningPlugin.getLogger().info("Loading onEnable hooks...");
         int count = instance.loadHooks(instance.onEnableHooks);
         instance.owningPlugin.getLogger().info("Loaded " + count + " hooks!");
@@ -136,6 +141,14 @@ public final class Hooker implements Listener {
                 },
                 5 * 20L
         );
+    }
+
+    public static void disable() {
+        if (instance == null) return;
+
+        instance.owningPlugin.getLogger().info("Disabling hooks...");
+        int count = instance.disableHooks();
+        instance.owningPlugin.getLogger().info("Disabled " + count + " hooks!");
     }
 
     /**
@@ -153,18 +166,18 @@ public final class Hooker implements Listener {
         instance.requirementRegistry.register(requirement, predicate);
     }
 
-    @EventHandler
-    private void onDisable(PluginDisableEvent event) {
-        if (!event.getPlugin().equals(owningPlugin)) return;
-
-        disableHooks();
-    }
-
     private int reloadHooks() {
         int count = 0;
-        for (Class<?> hookClass : onEnableHooks) {
+        count += reloadHooks(onEnableHooks);
+        count += reloadHooks(lateHooks);
+        return count;
+    }
+
+    private int reloadHooks(List<Class<?>> hooks) {
+        int count = 0;
+        for (Class<?> hookClass : hooks) {
             if (loadedHooks.containsKey(hookClass)) {
-                if (reloadLoadedHook(loadedHooks.get(hookClass))) count++;
+                if (reloadLoadedHook(loadedHooks.get(hookClass)).join()) count++;
                 continue;
             }
 
@@ -176,11 +189,15 @@ public final class Hooker implements Listener {
         return count;
     }
 
-    private boolean reloadLoadedHook(Object hook) {
+    private CompletableFuture<Boolean> reloadLoadedHook(Object hook) {
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
         Method tempMethod = null;
         Method tempMethod2 = null;
         Reloadable reloadable = hook.getClass().getAnnotation(Reloadable.class);
-        if (reloadable == null) return false;
+        if (reloadable == null) {
+            future.complete(false);
+            return future;
+        }
 
         for (Method method : hook.getClass().getDeclaredMethods()) {
             if (method.isAnnotationPresent(OnStart.class)) {
@@ -201,29 +218,42 @@ public final class Hooker implements Listener {
         }
 
         if (reloadable.async()) {
-            MultiLib.getAsyncScheduler().runNow(owningPlugin, t -> {
-                try {
-                    if (stopMethod != null) {
-                        stopMethod.invoke(hook);
-                    }
-                    startMethod.invoke(hook);
-                } catch (IllegalAccessException | InvocationTargetException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            MultiLib.getAsyncScheduler().runNow(owningPlugin, reloadTask(hook, startMethod, stopMethod, future));
         } else {
-            MultiLib.getGlobalRegionScheduler().run(owningPlugin, t -> {
-                try {
-                    if (stopMethod != null) {
-                        stopMethod.invoke(hook);
-                    }
-                    startMethod.invoke(hook);
-                } catch (IllegalAccessException | InvocationTargetException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            MultiLib.getGlobalRegionScheduler().run(owningPlugin, reloadTask(hook, startMethod, stopMethod, future));
         }
-        return true;
+
+        future.thenAccept(result -> {
+            if (result) {
+                Hook hookAnnotation = hook.getClass().getAnnotation(Hook.class);
+                owningPlugin.getLogger().info("Reloaded hook: " + hookAnnotation.id());
+            }
+        });
+
+        return future;
+    }
+
+    private Consumer<RegionizedTask> reloadTask(
+            Object hook,
+            Method startMethod,
+            Method stopMethod,
+            CompletableFuture<Boolean> future
+    ) {
+        return t -> {
+            try {
+                if (stopMethod != null) {
+                    stopMethod.invoke(hook);
+                }
+                Object response = startMethod.invoke(hook);
+                if (response instanceof Boolean load) {
+                    future.complete(load);
+                } else {
+                    future.complete(true);
+                }
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new RuntimeException(e);
+            }
+        };
     }
 
     private int loadHooks(List<Class<?>> hooks) {
@@ -273,8 +303,9 @@ public final class Hooker implements Listener {
         return true;
     }
 
-    private void disableHooks() {
-        for (Object hook : loadedHooks.values()) {
+    private int disableHooks() {
+        int count = 0;
+        for (Object hook : new ArrayList<>(loadedHooks.values())) {
             for (Method method : hook.getClass().getDeclaredMethods()) {
                 if (!method.isAnnotationPresent(OnStop.class)) continue;
                 try {
@@ -285,7 +316,11 @@ public final class Hooker implements Listener {
                 break;
             }
             loadedHooks.remove(hook.getClass());
+            Hook hookAnnotation = hook.getClass().getAnnotation(Hook.class);
+            owningPlugin.getLogger().info("Disabled hook: " + hookAnnotation.id());
+            count++;
         }
+        return count;
     }
 
     private void scanForHooks(ClassLoader loader) {

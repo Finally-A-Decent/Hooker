@@ -1,25 +1,36 @@
 package info.preva1l.hooker;
 
 import be.seeseemelk.mockbukkit.MockBukkit;
+import be.seeseemelk.mockbukkit.ServerMock;
 import info.preva1l.hooker.example.MyPlugin;
+import info.preva1l.hooker.example.hooks.LateHook;
 import info.preva1l.hooker.example.hooks.OnEnableHook;
 import info.preva1l.hooker.example.hooks.OnLoadHook;
+import org.bukkit.event.server.PluginDisableEvent;
 import org.junit.jupiter.api.*;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Created on 9/03/2025
  *
  * @author Preva1l
  */
-@DisplayName("Hooker Tests (1.19)")
+@DisplayName("Hooker Tests")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class HookerTests {
+    private static ServerMock serverMock;
+    private static MyPlugin plugin;
+
     @BeforeAll
     @DisplayName("Test Plugin Setup")
     public static void setUpPlugin() {
-        MockBukkit.mock();
+        serverMock = MockBukkit.mock();
         MockBukkit.createMockPlugin("PlaceholderAPI");
-        MockBukkit.load(MyPlugin.class);
+        plugin = MockBukkit.load(MyPlugin.class);
+        serverMock.getScheduler().waitAsyncTasksFinished();
     }
 
     @AfterAll
@@ -39,5 +50,35 @@ public class HookerTests {
     @DisplayName("Test Hook Gets Loaded On Enable")
     public void testLoadingOnEnable() {
         Assertions.assertTrue(Hooker.getHook(OnEnableHook.class).isPresent());
+    }
+
+    @Order(3)
+    @Test
+    @DisplayName("Test Hook Reloading")
+    public void testReloadHooks() {
+        AtomicBoolean completed = new AtomicBoolean(false);
+
+        CompletableFuture.runAsync(() -> {
+            // we need to continue the ticking on a diff thread while we join the future
+            while (!completed.get()) {
+                serverMock.getScheduler().performOneTick();
+            }
+        });
+
+        Assertions.assertDoesNotThrow(() -> {
+            Hooker.reload().join();
+            completed.set(true);
+        });
+    }
+
+    @Order(4)
+    @Test
+    @DisplayName("Test Hooks Get Disabled")
+    public void testHooksGetDisabled() {
+        serverMock.getPluginManager().disablePlugin(plugin);
+
+        Assertions.assertFalse(Hooker.getHook(OnLoadHook.class).isPresent());
+        Assertions.assertFalse(Hooker.getHook(OnEnableHook.class).isPresent());
+        Assertions.assertFalse(Hooker.getHook(LateHook.class).isPresent());
     }
 }

@@ -33,7 +33,9 @@ allprojects {
 
         implementation("com.github.puregero:multilib:1.2.4")
 
-        testImplementation("com.github.seeseemelk:MockBukkit-v1.19:3.1.0")
+        testImplementation("com.github.seeseemelk:MockBukkit-v1.20:3.93.2")
+        testImplementation("com.github.puregero:multilib:1.2.4")
+
         testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
         testImplementation("org.junit.jupiter:junit-jupiter-params:5.11.4")
         testImplementation("org.junit.jupiter:junit-jupiter-engine:5.11.4")

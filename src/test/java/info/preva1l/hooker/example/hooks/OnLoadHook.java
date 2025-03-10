@@ -9,7 +9,6 @@ import info.preva1l.hooker.annotation.*;
  * @author Preva1l
  */
 @Hook(id = "onLoadHook", order = HookOrder.LOAD)
-@Reloadable(async = true)
 @Require(type = "config", value = "test-hook")
 public class OnLoadHook {
     @OnStart

@@ -16,7 +16,10 @@ public class MyPlugin extends JavaPlugin {
 
         Hooker.requirement(
                 "config",
-                value -> true
+                value -> switch (value) {
+                    case "test-hook" -> true;
+                    default -> false;
+                }
         );
 
         Hooker.load();
@@ -25,5 +28,10 @@ public class MyPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         Hooker.enable();
+    }
+
+    @Override
+    public void onDisable() {
+        Hooker.disable();
     }
 }

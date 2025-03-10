@@ -9,7 +9,7 @@ import info.preva1l.hooker.annotation.*;
  * @author Preva1l
  */
 @Hook(id = "onEnableHook")
-@Reloadable(async = true)
+@Reloadable
 @Require("PlaceholderAPI")
 public class OnEnableHook {
     @OnStart
