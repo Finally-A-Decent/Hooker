@@ -21,7 +21,10 @@ import java.util.Set;
  * @author Preva1l
  */
 @AutoService(Processor.class)
-@SupportedAnnotationTypes({"SyncTask", "AsyncTask"})
+@SupportedAnnotationTypes({
+        "info.preva1l.hooker.annotation.Hook",
+        "info.preva1l.hooker.annotation.Reloadable"
+})
 public class IncompatibilityProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {

@@ -28,8 +28,8 @@ allprojects {
     dependencies {
         compileOnly("io.papermc.paper:paper-api:1.17-R0.1-SNAPSHOT")
 
-        annotationProcessor("com.google.auto.service:auto-service:1.1.1")
         compileOnly("com.google.auto.service:auto-service-annotations:1.1.1")
+        annotationProcessor("com.google.auto.service:auto-service:1.1.1")
 
         implementation("com.github.puregero:multilib:1.2.4")
 
@@ -51,7 +51,7 @@ tasks.withType<Test> {
 tasks.withType<ShadowJar> {
     archiveClassifier.set("")
     exclude(
-        "META-INF/"
+        "META-INF/maven"
     )
 }
 
