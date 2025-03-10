@@ -8,7 +8,8 @@ plugins {
 }
 
 var currentBranch: String = grgit.branch.current().name
-if (currentBranch != "master" || currentBranch != "HEAD") {
+val devMode = currentBranch != "master" && currentBranch != "HEAD"
+if (devMode) {
     println("Starting in development mode")
 }
 
@@ -21,7 +22,7 @@ allprojects {
         maven(url = "https://jitpack.io")
         maven(url = "https://repo.clojars.org/")
         maven(url = "https://repo.papermc.io/repository/maven-public/")
-        if (currentBranch != "master") configureFinallyADecentRepository(dev = true)
+        if (devMode) configureFinallyADecentRepository(dev = true)
         configureFinallyADecentRepository()
     }
 
@@ -60,9 +61,7 @@ tasks.withType<JavaCompile> {
 }
 
 publishing {
-    repositories.configureFinallyADecentRepository(
-        dev = currentBranch != "master"
-    )
+    repositories.configureFinallyADecentRepository(dev = devMode)
 
     publications {
         register(
