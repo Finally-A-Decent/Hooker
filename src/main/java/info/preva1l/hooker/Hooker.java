@@ -358,7 +358,9 @@ public final class Hooker {
             URL resource = resources.nextElement();
 
             if (resource.getProtocol().equals("jar")) {
-                String jarFilePath = resource.getPath().substring(5, resource.getPath().indexOf("!"));
+                String jarFilePath = resource.getPath()
+                        .substring(5, resource.getPath().indexOf("!"))
+                        .replace("%20", " ");
                 JarFile jarFile = new JarFile(jarFilePath);
 
                 Enumeration<JarEntry> entries = jarFile.entries();

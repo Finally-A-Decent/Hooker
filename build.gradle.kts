@@ -14,7 +14,7 @@ if (currentBranch != "master") {
 
 allprojects {
     group = "info.preva1l.hooker"
-    version = "1.0.0"
+    version = "1.0.1"
 
     repositories {
         mavenCentral()
@@ -84,8 +84,8 @@ tasks.register("publishAll") {
 
 fun RepositoryHandler.configureFinallyADecentRepository(dev: Boolean = false)
 {
-    val user: String? = properties["fad_username"]?.toString()
-    val pass: String? = properties["fad_password"]?.toString()
+    val user: String? = properties["fad_username"]?.toString() ?: System.getenv("fad_username")
+    val pass: String? = properties["fad_password"]?.toString() ?: System.getenv("fad_password")
 
     if (user != null && pass != null) {
         maven("https://repo.preva1l.info/${if (dev) "development" else "releases"}/") {
