@@ -7,14 +7,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLClassLoader;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -58,7 +53,7 @@ public final class Hooker {
      * </br>
      * This must be called before you want any hooks loaded (at the top of {@link JavaPlugin#onLoad()})
      *
-     * @param plugin your plugin instance
+     * @param plugin   your plugin instance
      * @param packages what packages hooker will scan for classes annotated with {@link Hook}
      */
     public static void register(JavaPlugin plugin, String... packages) {
@@ -73,7 +68,7 @@ public final class Hooker {
      * </br>
      * This must be called before you want any hooks loaded (at the top of {@link JavaPlugin#onLoad()})
      *
-     * @param plugin your plugin instance
+     * @param plugin   your plugin instance
      * @param packages what packages hooker will scan for classes annotated with {@link Hook}
      */
     public static void register(JavaPlugin plugin, boolean loadNow, String... packages) {
@@ -109,7 +104,8 @@ public final class Hooker {
      * @return returns a completable future that completes when all hooks are reloaded
      */
     public static CompletableFuture<Void> reload() {
-        if (instance == null) throw new IllegalStateException("You cannot reload hooks when Hooker is not initialized!");
+        if (instance == null)
+            throw new IllegalStateException("You cannot reload hooks when Hooker is not initialized!");
 
         return CompletableFuture.runAsync(() -> {
             instance.owningPlugin.getLogger().info("Reloading hooks...");
@@ -162,10 +158,11 @@ public final class Hooker {
      * Register a custom requirement.
      *
      * @param requirement the type
-     * @param predicate the checker
+     * @param predicate   the checker
      */
     public static void requirement(String requirement, Predicate<String> predicate) {
-        if (instance == null) throw new IllegalStateException("You cannot add a requirement when Hooker is not initialized!");
+        if (instance == null)
+            throw new IllegalStateException("You cannot add a requirement when Hooker is not initialized!");
 
         if (instance.requirementRegistry.exists(requirement)) {
             throw new IllegalStateException("Requirement " + requirement + " already exists!");
@@ -304,7 +301,8 @@ public final class Hooker {
             if (!loaded) return false;
             owningPlugin.getLogger().info("Loaded hook: " + hookAnnotation.id());
             loadedHooks.put(hookClass, hook);
-        } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException ex) {
+        } catch (NoSuchMethodException | InstantiationException | IllegalAccessException |
+                 InvocationTargetException ex) {
             throw new RuntimeException(ex);
         }
         return true;
@@ -375,7 +373,8 @@ public final class Hooker {
                             if (annotation != null) {
                                 classes.put(clazz, annotation.order());
                             }
-                        } catch (ClassNotFoundException | NoClassDefFoundError ignored) {}
+                        } catch (ClassNotFoundException | NoClassDefFoundError ignored) {
+                        }
                     }
                 }
                 jarFile.close();
@@ -413,7 +412,8 @@ public final class Hooker {
                     if (annotation != null) {
                         classes.put(clazz, annotation.order());
                     }
-                } catch (ClassNotFoundException ignored) {}
+                } catch (ClassNotFoundException ignored) {
+                }
             }
         }
         return classes;
