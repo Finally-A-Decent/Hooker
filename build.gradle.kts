@@ -28,6 +28,9 @@ allprojects {
     dependencies {
         compileOnly("io.papermc.paper:paper-api:1.17-R0.1-SNAPSHOT")
 
+        annotationProcessor("com.google.auto.service:auto-service:1.1.1")
+        compileOnly("com.google.auto.service:auto-service-annotations:1.1.1")
+
         implementation("com.github.puregero:multilib:1.2.4")
 
         testImplementation("com.github.seeseemelk:MockBukkit-v1.19:3.1.0")

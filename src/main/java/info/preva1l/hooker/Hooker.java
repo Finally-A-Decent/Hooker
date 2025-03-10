@@ -100,7 +100,9 @@ public final class Hooker implements Listener {
     public static void reload() {
         if (instance == null) throw new IllegalStateException("You cannot reload hooks when Hooker is not initialized!");
 
-        instance.reloadHooks();
+        instance.owningPlugin.getLogger().info("Reloading hooks...");
+        int count = instance.reloadHooks();
+        instance.owningPlugin.getLogger().info("Reloaded " + count + " hooks!");
     }
 
     /**
@@ -158,100 +160,117 @@ public final class Hooker implements Listener {
         disableHooks();
     }
 
-    private void reloadHooks() {
-        for (Object hook : loadedHooks.values()) {
-            Method tempMethod = null;
-            Method tempMethod2 = null;
-            Reloadable reloadable = hook.getClass().getAnnotation(Reloadable.class);
+    private int reloadHooks() {
+        int count = 0;
+        for (Class<?> hookClass : onEnableHooks) {
+            if (loadedHooks.containsKey(hookClass)) {
+                if (reloadLoadedHook(loadedHooks.get(hookClass))) count++;
+                continue;
+            }
+
+            Reloadable reloadable = hookClass.getAnnotation(Reloadable.class);
             if (reloadable == null) continue;
 
-            for (Method method : hook.getClass().getDeclaredMethods()) {
-                if (method.isAnnotationPresent(OnStart.class)) {
-                    tempMethod = method;
-                }
-                if (method.isAnnotationPresent(OnStop.class)) {
-                    tempMethod2 = method;
-                }
-            }
-
-            assert tempMethod != null;
-            Method startMethod = tempMethod;
-            startMethod.setAccessible(true);
-
-            Method stopMethod = tempMethod2;
-            if (stopMethod != null) {
-                stopMethod.setAccessible(true);
-            }
-
-            if (reloadable.async()) {
-                MultiLib.getAsyncScheduler().runNow(owningPlugin, t -> {
-                    try {
-                        if (stopMethod != null) {
-                            stopMethod.invoke(hook);
-                        }
-                        startMethod.invoke(hook);
-                    } catch (IllegalAccessException | InvocationTargetException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            } else {
-                MultiLib.getGlobalRegionScheduler().run(owningPlugin, t -> {
-                    try {
-                        if (stopMethod != null) {
-                            stopMethod.invoke(hook);
-                        }
-                        startMethod.invoke(hook);
-                    } catch (IllegalAccessException | InvocationTargetException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            }
-            loadedHooks.remove(hook.getClass());
+            if (loadHook(hookClass)) count++;
         }
+        return count;
+    }
+
+    private boolean reloadLoadedHook(Object hook) {
+        Method tempMethod = null;
+        Method tempMethod2 = null;
+        Reloadable reloadable = hook.getClass().getAnnotation(Reloadable.class);
+        if (reloadable == null) return false;
+
+        for (Method method : hook.getClass().getDeclaredMethods()) {
+            if (method.isAnnotationPresent(OnStart.class)) {
+                tempMethod = method;
+            }
+            if (method.isAnnotationPresent(OnStop.class)) {
+                tempMethod2 = method;
+            }
+        }
+
+        assert tempMethod != null;
+        Method startMethod = tempMethod;
+        startMethod.setAccessible(true);
+
+        Method stopMethod = tempMethod2;
+        if (stopMethod != null) {
+            stopMethod.setAccessible(true);
+        }
+
+        if (reloadable.async()) {
+            MultiLib.getAsyncScheduler().runNow(owningPlugin, t -> {
+                try {
+                    if (stopMethod != null) {
+                        stopMethod.invoke(hook);
+                    }
+                    startMethod.invoke(hook);
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        } else {
+            MultiLib.getGlobalRegionScheduler().run(owningPlugin, t -> {
+                try {
+                    if (stopMethod != null) {
+                        stopMethod.invoke(hook);
+                    }
+                    startMethod.invoke(hook);
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+        return true;
     }
 
     private int loadHooks(List<Class<?>> hooks) {
         int count = 0;
         for (Class<?> hookClass : hooks) {
-            try {
-                Hook hookAnnotation = hookClass.getAnnotation(Hook.class);
-                Require[] requirements = hookClass.getAnnotationsByType(Require.class);
+            if (loadHook(hookClass)) count++;
+        }
+        return count;
+    }
 
-                boolean failed = false;
-                for (Require requirement : requirements) {
-                    String type = requirement.type();
-                    String value = requirement.value();
+    private boolean loadHook(Class<?> hookClass) {
+        try {
+            Hook hookAnnotation = hookClass.getAnnotation(Hook.class);
+            Require[] requirements = hookClass.getAnnotationsByType(Require.class);
 
-                    if (!requirementRegistry.checkRequirement(type, value)) {
-                        failed = true;
-                        break;
-                    }
-                }
-                if (failed) continue;
+            boolean failed = false;
+            for (Require requirement : requirements) {
+                String type = requirement.type();
+                String value = requirement.value();
 
-                Object hook = hookClass.getDeclaredConstructor().newInstance();
-
-                boolean loaded = false;
-                for (Method method : hookClass.getDeclaredMethods()) {
-                    if (!method.isAnnotationPresent(OnStart.class)) continue;
-                    Object response = method.invoke(hook);
-                    if (response instanceof Boolean load) {
-                        loaded = load;
-                    } else {
-                        loaded = true;
-                    }
+                if (!requirementRegistry.checkRequirement(type, value)) {
+                    failed = true;
                     break;
                 }
-                if (!loaded) continue;
-                owningPlugin.getLogger().info("Loaded hook: " + hookAnnotation.id());
-                loadedHooks.put(hookClass, hook);
-                count++;
-            } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException ex) {
-                throw new RuntimeException(ex);
             }
-        }
+            if (failed) return false;
 
-        return count;
+            Object hook = hookClass.getDeclaredConstructor().newInstance();
+
+            boolean loaded = false;
+            for (Method method : hookClass.getDeclaredMethods()) {
+                if (!method.isAnnotationPresent(OnStart.class)) continue;
+                Object response = method.invoke(hook);
+                if (response instanceof Boolean load) {
+                    loaded = load;
+                } else {
+                    loaded = true;
+                }
+                break;
+            }
+            if (!loaded) return false;
+            owningPlugin.getLogger().info("Loaded hook: " + hookAnnotation.id());
+            loadedHooks.put(hookClass, hook);
+        } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException ex) {
+            throw new RuntimeException(ex);
+        }
+        return true;
     }
 
     private void disableHooks() {
