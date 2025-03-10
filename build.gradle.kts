@@ -19,6 +19,7 @@ allprojects {
     repositories {
         mavenCentral()
         maven(url = "https://jitpack.io")
+        maven(url = "https://repo.clojars.org/")
         maven(url = "https://repo.papermc.io/repository/maven-public/")
         if (currentBranch != "master") configureFinallyADecentRepository(dev = true)
         configureFinallyADecentRepository()
@@ -26,6 +27,8 @@ allprojects {
 
     dependencies {
         compileOnly("io.papermc.paper:paper-api:1.17-R0.1-SNAPSHOT")
+
+        implementation("com.github.puregero:multilib:1.2.4")
 
         testImplementation("com.github.seeseemelk:MockBukkit-v1.19:3.1.0")
         testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")

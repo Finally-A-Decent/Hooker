@@ -1,5 +1,6 @@
 package info.preva1l.hooker;
 
+import com.github.puregero.multilib.MultiLib;
 import info.preva1l.hooker.annotation.*;
 import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
@@ -124,9 +125,9 @@ public final class Hooker implements Listener {
         int count = instance.loadHooks(instance.onEnableHooks);
         instance.owningPlugin.getLogger().info("Loaded " + count + " hooks!");
 
-        Bukkit.getScheduler().runTaskLater(
+        MultiLib.getGlobalRegionScheduler().runDelayed(
                 instance.owningPlugin,
-                () -> {
+                t -> {
                     instance.owningPlugin.getLogger().info("Loading late hooks...");
                     int count2 = instance.loadHooks(instance.lateHooks);
                     instance.owningPlugin.getLogger().info("Loaded " + count2 + " hooks!");
@@ -165,7 +166,7 @@ public final class Hooker implements Listener {
                 if (reloadable == null) continue;
                 method.setAccessible(true);
                 if (reloadable.async()) {
-                    Bukkit.getScheduler().runTaskAsynchronously(owningPlugin, () -> {
+                    MultiLib.getAsyncScheduler().runNow(owningPlugin, t -> {
                         try {
                             method.invoke(hook);
                         } catch (IllegalAccessException | InvocationTargetException e) {
@@ -173,7 +174,7 @@ public final class Hooker implements Listener {
                         }
                     });
                 } else {
-                    Bukkit.getScheduler().runTask(owningPlugin, () -> {
+                    MultiLib.getGlobalRegionScheduler().run(owningPlugin, t -> {
                         try {
                             method.invoke(hook);
                         } catch (IllegalAccessException | InvocationTargetException e) {
