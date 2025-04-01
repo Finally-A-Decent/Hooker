@@ -96,6 +96,15 @@ public final class Hooker {
     }
 
     /**
+     * Gets all loaded hook objects.
+     *
+     * @return a list of all loaded hooks and the reference to their instance.
+     */
+    public static List<Object> getLoadedHooks() {
+        return new ArrayList<>(instance.loadedHooks.values());
+    }
+
+    /**
      * Reloads any loaded hooks that are annotated with {@link Reloadable}
      * </br>
      * This method runs some tasks asynchronously (reloadable hooks marked as async),

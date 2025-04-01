@@ -15,7 +15,7 @@ if (devMode) {
 
 allprojects {
     group = "info.preva1l.hooker"
-    version = "1.0.1"
+    version = "1.0.2"
 
     repositories {
         mavenCentral()
