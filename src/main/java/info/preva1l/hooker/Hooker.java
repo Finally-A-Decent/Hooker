@@ -50,8 +50,9 @@ public final class Hooker {
 
     /**
      * Register hooker for your plugin.
-     * </br>
+     * <p>
      * This must be called before you want any hooks loaded (at the top of {@link JavaPlugin#onLoad()})
+     * </p>
      *
      * @param plugin   your plugin instance
      * @param packages what packages hooker will scan for classes annotated with {@link Hook}
@@ -65,10 +66,12 @@ public final class Hooker {
     /**
      * Register hooker for your plugin.
      * With the option to start loading hooks immediately instead of waiting for custom requirement registration.
-     * </br>
+     * <p>
      * This must be called before you want any hooks loaded (at the top of {@link JavaPlugin#onLoad()})
+     * </p>
      *
      * @param plugin   your plugin instance
+     * @param loadNow whether the onLoad hooks should load now or wait for {@link Hooker#load()}
      * @param packages what packages hooker will scan for classes annotated with {@link Hook}
      */
     public static void register(JavaPlugin plugin, boolean loadNow, String... packages) {
@@ -81,6 +84,7 @@ public final class Hooker {
      * Get a hook by the class if the hook is loaded.
      *
      * @param hookClass the hook to get
+     * @param <T> the hook class
      * @return the hook if loaded, empty optional if not
      */
     public static <T> Optional<T> getHook(Class<T> hookClass) {
@@ -88,8 +92,8 @@ public final class Hooker {
 
         for (Map.Entry<Class<?>, Object> hook : instance.loadedHooks.entrySet()) {
             if (hook.getKey() == hookClass) {
-                //noinspection unchecked
-                return Optional.of((T) hook.getValue());
+                Object value = hook.getValue();
+                if (hookClass.isInstance(value)) return Optional.of(hookClass.cast(value));
             }
         }
         return Optional.empty();
@@ -106,9 +110,10 @@ public final class Hooker {
 
     /**
      * Reloads any loaded hooks that are annotated with {@link Reloadable}
-     * </br>
+     * <p>
      * This method runs some tasks asynchronously (reloadable hooks marked as async),
      * this is why we return a completable future.
+     * </p>
      *
      * @return returns a completable future that completes when all hooks are reloaded
      */
@@ -155,6 +160,9 @@ public final class Hooker {
         );
     }
 
+    /**
+     * Call this method at the top of {@link JavaPlugin#onDisable()}
+     */
     public static void disable() {
         if (instance == null) return;
 

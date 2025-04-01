@@ -11,7 +11,17 @@ import java.lang.annotation.*;
 @Target(ElementType.TYPE)
 @Repeatable(RequireComposite.class)
 public @interface Require {
+    /**
+     * The type of requirement. Also known as the key.
+     *
+     * @return the type/key of the requirement.
+     */
     String type() default "plugin";
 
+    /**
+     * The value of the requirement.
+     *
+     * @return the requirement value to check.
+     */
     String value();
 }

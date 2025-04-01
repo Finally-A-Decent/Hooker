@@ -60,6 +60,25 @@ tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
 }
 
+tasks.withType<Javadoc> {
+    (options as StandardJavadocDocletOptions).tags(
+        "apiNote:a:API Note:",
+        "implSpec:a:Implementation Requirements:",
+        "implNote:a:Implementation Note:"
+    )
+}
+
+tasks.register<Jar>("javadocJar") {
+    dependsOn("javadoc")
+    archiveClassifier.set("javadoc")
+    from(tasks.named<Javadoc>("javadoc").get().destinationDir)
+}
+
+tasks.register<Jar>("sourcesJar") {
+    archiveClassifier.set("sources")
+    from(sourceSets.main.get().allSource)
+}
+
 publishing {
     repositories.configureFinallyADecentRepository(dev = devMode)
 
@@ -67,7 +86,12 @@ publishing {
         register(
             name = "mavenJava",
             type = MavenPublication::class,
-            configurationAction = shadow::component
+            configurationAction = {
+                from(components["java"])
+
+                artifact(tasks.named("sourcesJar"))
+                artifact(tasks.named("javadocJar"))
+            }
         )
     }
 }

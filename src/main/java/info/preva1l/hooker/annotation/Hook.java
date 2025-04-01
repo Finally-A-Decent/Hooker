@@ -17,11 +17,15 @@ import java.lang.annotation.Target;
 public @interface Hook {
     /**
      * The hook's id.
+     *
+     * @return the id.
      */
     String id();
 
     /**
      * When should the hook get loaded.
+     *
+     * @return the hook load order.
      */
     HookOrder order() default HookOrder.ENABLE;
 }

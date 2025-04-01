@@ -4,6 +4,7 @@ import com.google.auto.service.AutoService;
 import info.preva1l.hooker.HookOrder;
 import info.preva1l.hooker.annotation.Hook;
 import info.preva1l.hooker.annotation.Reloadable;
+import org.jetbrains.annotations.ApiStatus;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Processor;
@@ -25,7 +26,15 @@ import java.util.Set;
         "info.preva1l.hooker.annotation.Hook",
         "info.preva1l.hooker.annotation.Reloadable"
 })
+@ApiStatus.Internal
 public class IncompatibilityProcessor extends AbstractProcessor {
+    /**
+     * <b>Do not use.</b>
+     */
+    public IncompatibilityProcessor() {
+        super();
+    }
+
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         for (Element element : roundEnv.getElementsAnnotatedWith(Reloadable.class)) {

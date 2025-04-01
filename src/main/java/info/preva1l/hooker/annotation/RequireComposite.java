@@ -14,5 +14,10 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface RequireComposite {
+    /**
+     * An array of {@link Require} to support {@link java.lang.annotation.Repeatable}.
+     *
+     * @return the composite.
+     */
     Require[] value();
 }
