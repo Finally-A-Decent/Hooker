@@ -1,8 +1,7 @@
 package info.preva1l.hooker;
 
-import com.github.puregero.multilib.MultiLib;
-import com.github.puregero.multilib.regionized.RegionizedTask;
 import info.preva1l.hooker.annotation.*;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -12,7 +11,6 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -27,8 +25,7 @@ public final class Hooker {
     private static Hooker instance;
 
     private final RequirementRegistry requirementRegistry;
-    private final JavaPlugin owningPlugin;
-    private final List<String> packages;
+    private final HookerOptions options;
 
     private final List<Class<?>> onLoadHooks = new ArrayList<>();
     private final List<Class<?>> onEnableHooks = new ArrayList<>();
@@ -36,14 +33,13 @@ public final class Hooker {
 
     private final Map<Class<?>, Object> loadedHooks = new HashMap<>();
 
-    private Hooker(JavaPlugin owningPlugin, boolean loadNow, String... packages) {
+    private Hooker(Class<?> clazz, HookerOptions options) {
         this.requirementRegistry = new RequirementRegistry();
-        this.owningPlugin = owningPlugin;
-        this.packages = Arrays.asList(packages);
+        this.options = options;
 
-        scanForHooks(owningPlugin.getClass().getClassLoader());
+        scanForHooks(clazz.getClassLoader());
 
-        if (loadNow) {
+        if (options.loadNow) {
             load();
         }
     }
@@ -51,33 +47,58 @@ public final class Hooker {
     /**
      * Register hooker for your plugin.
      * <p>
-     * This must be called before you want any hooks loaded (at the top of {@link JavaPlugin#onLoad()})
+     * This must be called before you want any hooks loaded (at the top of JavaPlugin#onLoad()
      * </p>
      *
-     * @param plugin   your plugin instance
-     * @param packages what packages hooker will scan for classes annotated with {@link Hook}
+     * @param clazz   your main class
+     * @param options what options hooker will use
      */
-    public static void register(JavaPlugin plugin, String... packages) {
+    public static void register(Class<?> clazz, HookerOptions options) {
         if (instance != null) throw new IllegalStateException("Hooker is already registered!");
 
-        instance = new Hooker(plugin, false, packages);
+        instance = new Hooker(clazz, options);
     }
 
     /**
      * Register hooker for your plugin.
-     * With the option to start loading hooks immediately instead of waiting for custom requirement registration.
      * <p>
-     * This must be called before you want any hooks loaded (at the top of {@link JavaPlugin#onLoad()})
+     * This must be called before you want any hooks loaded (at the top of JavaPlugin#onLoad()
+     * </p>
+     *
+     * @param clazz   your main class
+     * @param packages what packages hooker will scan for class annotated with the {@link Hook} annotation
+     */
+    public static void register(Class<?> clazz, String... packages) {
+        if (instance != null) throw new IllegalStateException("Hooker is already registered!");
+
+        instance = new Hooker(clazz, new HookerOptions(packages));
+    }
+
+
+    /**
+     * Register hooker for your plugin.
+     * <p>
+     * This must be called before you want any hooks loaded (at the top of JavaPlugin#onLoad()
      * </p>
      *
      * @param plugin   your plugin instance
-     * @param loadNow whether the onLoad hooks should load now or wait for {@link Hooker#load()}
-     * @param packages what packages hooker will scan for classes annotated with {@link Hook}
+     * @param packages what packages hooker will scan for class annotated with the {@link Hook} annotation
      */
-    public static void register(JavaPlugin plugin, boolean loadNow, String... packages) {
+    // todo: add a module for this specifically so that we can have hooker as an independent woman once and forall
+    public static void register(JavaPlugin plugin, String... packages) {
         if (instance != null) throw new IllegalStateException("Hooker is already registered!");
 
-        instance = new Hooker(plugin, loadNow, packages);
+        instance = new Hooker(
+                plugin.getClass(),
+                new HookerOptions(
+                        plugin.getLogger(),
+                        false,
+                        runnable -> Bukkit.getScheduler().runTaskAsynchronously(plugin, runnable),
+                        runnable -> Bukkit.getScheduler().runTask(plugin, runnable),
+                        runnable -> Bukkit.getScheduler().runTaskLater(plugin, runnable,60L),
+                        packages
+                )
+        );
     }
 
     /**
@@ -122,53 +143,49 @@ public final class Hooker {
             throw new IllegalStateException("You cannot reload hooks when Hooker is not initialized!");
 
         return CompletableFuture.runAsync(() -> {
-            instance.owningPlugin.getLogger().info("Reloading hooks...");
+            instance.options.logger.info("Reloading hooks...");
             int count = instance.reloadHooks();
-            instance.owningPlugin.getLogger().info("Reloaded " + count + " hooks!");
+            instance.options.logger.info("Reloaded " + count + " hooks!");
         });
     }
 
     /**
-     * Call this method in your {@link JavaPlugin#onLoad()} after you have registered Hooker and custom requirements
+     * Call this method in your JavaPlugin#onLoad() after you have registered Hooker and custom requirements
      */
     public static void load() {
         if (instance == null) throw new IllegalStateException("You cannot load hooks when Hooker is not initialized!");
 
-        instance.owningPlugin.getLogger().info("Loading onLoad hooks...");
+        instance.options.logger.info("Loading onLoad hooks...");
         int count = instance.loadHooks(instance.onLoadHooks);
-        instance.owningPlugin.getLogger().info("Loaded " + count + " hooks!");
+        instance.options.logger.info("Loaded " + count + " hooks!");
     }
 
     /**
-     * Call this method at the top of {@link JavaPlugin#onEnable()}
+     * Call this method at the top of JavaPlugin#onEnable()
      */
     public static void enable() {
         if (instance == null) throw new IllegalStateException("You cannot load hooks when Hooker is not initialized!");
 
-        instance.owningPlugin.getLogger().info("Loading onEnable hooks...");
+        instance.options.logger.info("Loading onEnable hooks...");
         int count = instance.loadHooks(instance.onEnableHooks);
-        instance.owningPlugin.getLogger().info("Loaded " + count + " hooks!");
+        instance.options.logger.info("Loaded " + count + " hooks!");
 
-        MultiLib.getGlobalRegionScheduler().runDelayed(
-                instance.owningPlugin,
-                t -> {
-                    instance.owningPlugin.getLogger().info("Loading late hooks...");
-                    int count2 = instance.loadHooks(instance.lateHooks);
-                    instance.owningPlugin.getLogger().info("Loaded " + count2 + " hooks!");
-                },
-                5 * 20L
-        );
+        instance.options.delayedRunner.accept(() -> {
+            instance.options.logger.info("Loading late hooks...");
+            int count2 = instance.loadHooks(instance.lateHooks);
+            instance.options.logger.info("Loaded " + count2 + " hooks!");
+        });
     }
 
     /**
-     * Call this method at the top of {@link JavaPlugin#onDisable()}
+     * Call this method at the top of JavaPlugin#onDisable()
      */
     public static void disable() {
         if (instance == null) return;
 
-        instance.owningPlugin.getLogger().info("Disabling hooks...");
+        instance.options.logger.info("Disabling hooks...");
         int count = instance.disableHooks();
-        instance.owningPlugin.getLogger().info("Disabled " + count + " hooks!");
+        instance.options.logger.info("Disabled " + count + " hooks!");
     }
 
     /**
@@ -239,28 +256,28 @@ public final class Hooker {
         }
 
         if (reloadable.async()) {
-            MultiLib.getAsyncScheduler().runNow(owningPlugin, reloadTask(hook, startMethod, stopMethod, future));
+            options.asyncRunner.accept(reloadTask(hook, startMethod, stopMethod, future));
         } else {
-            MultiLib.getGlobalRegionScheduler().run(owningPlugin, reloadTask(hook, startMethod, stopMethod, future));
+            options.syncRunner.accept(reloadTask(hook, startMethod, stopMethod, future));
         }
 
         future.thenAccept(result -> {
             if (result) {
                 Hook hookAnnotation = hook.getClass().getAnnotation(Hook.class);
-                owningPlugin.getLogger().info("Reloaded hook: " + hookAnnotation.id());
+                options.logger.info("Reloaded hook: " + hookAnnotation.id());
             }
         });
 
         return future;
     }
 
-    private Consumer<RegionizedTask> reloadTask(
+    private Runnable reloadTask(
             Object hook,
             Method startMethod,
             Method stopMethod,
             CompletableFuture<Boolean> future
     ) {
-        return t -> {
+        return () -> {
             try {
                 if (stopMethod != null) {
                     stopMethod.invoke(hook);
@@ -316,7 +333,7 @@ public final class Hooker {
                 break;
             }
             if (!loaded) return false;
-            owningPlugin.getLogger().info("Loaded hook: " + hookAnnotation.id());
+            options.logger.info("Loaded hook: " + hookAnnotation.id());
             loadedHooks.put(hookClass, hook);
         } catch (NoSuchMethodException | InstantiationException | IllegalAccessException |
                  InvocationTargetException ex) {
@@ -339,14 +356,14 @@ public final class Hooker {
             }
             loadedHooks.remove(hook.getClass());
             Hook hookAnnotation = hook.getClass().getAnnotation(Hook.class);
-            owningPlugin.getLogger().info("Disabled hook: " + hookAnnotation.id());
+            options.logger.info("Disabled hook: " + hookAnnotation.id());
             count++;
         }
         return count;
     }
 
     private void scanForHooks(ClassLoader loader) {
-        for (String pkg : packages) {
+        for (String pkg : options.packages) {
             try {
                 getClasses(loader, pkg).forEach((hook, order) -> {
                     switch (order) {

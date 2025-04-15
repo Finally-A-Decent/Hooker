@@ -32,10 +32,7 @@ allprojects {
         compileOnly("com.google.auto.service:auto-service-annotations:1.1.1")
         annotationProcessor("com.google.auto.service:auto-service:1.1.1")
 
-        implementation("com.github.puregero:multilib:1.2.4")
-
         testImplementation("com.github.seeseemelk:MockBukkit-v1.20:3.93.2")
-        testImplementation("com.github.puregero:multilib:1.2.4")
 
         testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
         testImplementation("org.junit.jupiter:junit-jupiter-params:5.11.4")

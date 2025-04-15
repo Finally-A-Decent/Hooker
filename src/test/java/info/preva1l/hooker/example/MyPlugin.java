@@ -12,7 +12,7 @@ public class MyPlugin extends JavaPlugin {
 
     @Override
     public void onLoad() {
-        Hooker.register(this, "info.preva1l.hooker.example.hooks");
+        Hooker.register(this.getClass(), "info.preva1l.hooker.example.hooks");
 
         Hooker.requirement(
                 "config",
